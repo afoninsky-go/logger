@@ -28,19 +28,28 @@ func (l *Logger) FatalIfError(err error) {
 	}
 }
 
-// Middleware returns http logging middleware
-func (l *Logger) Middleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		o := &responseObserver{ResponseWriter: w}
-		next.ServeHTTP(o, r)
+// CreateMiddleware returns http logging middleware
+func (l *Logger) CreateMiddleware() func(next http.Handler) http.Handler {
+	ignoreRoutes := map[string]bool{}
+	ignoreRoutes["/health"] = true
 
-		l.WithContext(r.Context()).
-			WithField("method", r.Method).
-			WithField("duration", time.Since(start)).
-			WithField("status", o.status).
-			Info(r.URL)
-	})
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			o := &responseObserver{ResponseWriter: w}
+			next.ServeHTTP(o, r)
+
+			if _, ok := ignoreRoutes[r.URL.Path]; ok {
+				return
+			}
+
+			l.WithContext(r.Context()).
+				WithField("method", r.Method).
+				WithField("duration", time.Since(start)).
+				WithField("status", o.status).
+				Info(r.URL)
+		})
+	}
 }
 
 // responseObserver is a minimal wrapper for http.ResponseWriter that allows the
