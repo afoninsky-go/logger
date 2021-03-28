@@ -32,11 +32,40 @@ func (l *Logger) FatalIfError(err error) {
 func (l *Logger) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		next.ServeHTTP(w, r)
+		o := &responseObserver{ResponseWriter: w}
+		next.ServeHTTP(o, r)
 
 		l.WithContext(r.Context()).
 			WithField("method", r.Method).
 			WithField("duration", time.Since(start)).
+			WithField("status", o.status).
 			Info(r.URL)
 	})
+}
+
+// responseObserver is a minimal wrapper for http.ResponseWriter that allows the
+// written HTTP status code to be captured for logging.
+type responseObserver struct {
+	http.ResponseWriter
+	status      int
+	written     int64
+	wroteHeader bool
+}
+
+func (o *responseObserver) Write(p []byte) (n int, err error) {
+	if !o.wroteHeader {
+		o.WriteHeader(http.StatusOK)
+	}
+	n, err = o.ResponseWriter.Write(p)
+	o.written += int64(n)
+	return
+}
+
+func (o *responseObserver) WriteHeader(code int) {
+	o.ResponseWriter.WriteHeader(code)
+	if o.wroteHeader {
+		return
+	}
+	o.wroteHeader = true
+	o.status = code
 }
