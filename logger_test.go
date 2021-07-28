@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
@@ -13,9 +14,10 @@ import (
 func TestAuthHandler(t *testing.T) {
 	log := NewSTDLogger()
 	router := mux.NewRouter().StrictSlash(true)
-	router.Use(log.CreateMiddleware())
+	router.Use(log.CreateMiddleware(nil))
 
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(time.Millisecond * 100)
 		io.WriteString(w, "OK")
 	})
 	ts := httptest.NewServer(router)

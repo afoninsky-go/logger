@@ -1,4 +1,4 @@
-module github.com/afoninsky-go/logger
+module github.com/afoninsky/go-logger
 
 go 1.16
 

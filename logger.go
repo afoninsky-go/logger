@@ -11,15 +11,23 @@ type Logger struct {
 	logrus.Entry
 }
 
-func NewSTDLogger() *Logger {
-	var log = logrus.NewEntry(logrus.New())
+type MiddlewareConfig struct {
+	IgnorePaths []string
+}
 
+func New() *Logger {
+	var log = logrus.NewEntry(logrus.New())
+	return &Logger{*log}
+}
+
+func NewSTDLogger() *Logger {
+	log := New()
 	log.Logger.SetFormatter(&logrus.TextFormatter{
 		DisableColors: true,
 		FullTimestamp: true,
 	})
 
-	return &Logger{*log}
+	return log
 }
 
 func (l *Logger) FatalIfError(err error) {
@@ -29,9 +37,13 @@ func (l *Logger) FatalIfError(err error) {
 }
 
 // CreateMiddleware returns http logging middleware
-func (l *Logger) CreateMiddleware() func(next http.Handler) http.Handler {
+func (l *Logger) CreateMiddleware(cfg *MiddlewareConfig) func(next http.Handler) http.Handler {
 	ignoreRoutes := map[string]bool{}
-	ignoreRoutes["/health"] = true
+	if cfg != nil {
+		for _, p := range cfg.IgnorePaths {
+			ignoreRoutes[p] = true
+		}
+	}
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -42,10 +54,9 @@ func (l *Logger) CreateMiddleware() func(next http.Handler) http.Handler {
 			if _, ok := ignoreRoutes[r.URL.Path]; ok {
 				return
 			}
-
 			l.WithContext(r.Context()).
 				WithField("method", r.Method).
-				WithField("duration", time.Since(start)).
+				WithField("duration", time.Since(start).Milliseconds()).
 				WithField("status", o.status).
 				Info(r.URL)
 		})
